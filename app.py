@@ -6,6 +6,7 @@ A fun, interactive dashboard to track who's out and when.
 import streamlit as st
 import pandas as pd
 from datetime import date, datetime, timedelta
+import calendar
 import os
 import random
 
@@ -100,6 +101,67 @@ st.markdown(
     .stButton>button {
         border-radius: 10px;
         font-weight: 600;
+    }
+    /* Calendar grid */
+    .cal-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+        margin-top: 12px;
+    }
+    .cal-header {
+        text-align: center;
+        font-weight: 700;
+        color: #666;
+        padding: 8px 4px;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .cal-day {
+        background: #f8f9fb;
+        border-radius: 10px;
+        padding: 8px;
+        min-height: 90px;
+        border: 1px solid #e8eaf0;
+        color: #1a1a1a;
+        font-size: 0.85rem;
+        position: relative;
+    }
+    .cal-day-empty {
+        background: transparent;
+        border: none;
+    }
+    .cal-day-today {
+        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        border: 2px solid #FF6B6B;
+        font-weight: 600;
+    }
+    .cal-day-has-ooo {
+        background: linear-gradient(135deg, #e0f7ff 0%, #c3e4f5 100%);
+        border-color: #4ECDC4;
+    }
+    .cal-day-weekend {
+        background: #f0f0f3;
+    }
+    .cal-day-num {
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin-bottom: 4px;
+        color: #1a1a1a;
+    }
+    .cal-person {
+        display: block;
+        background: white;
+        border-radius: 6px;
+        padding: 2px 6px;
+        margin: 2px 0;
+        font-size: 0.75rem;
+        color: #333;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-left: 3px solid #4ECDC4;
     }
     </style>
     """,
@@ -344,31 +406,100 @@ with tab3:
     if df.empty:
         st.info("No entries yet — calendar's wide open!")
     else:
-        st.subheader("📅 Next 30 Days")
-        days_ahead = 30
-        date_range = [today + timedelta(days=i) for i in range(days_ahead)]
+        # Month navigation using session state
+        if "cal_year" not in st.session_state:
+            st.session_state.cal_year = today.year
+        if "cal_month" not in st.session_state:
+            st.session_state.cal_month = today.month
 
-        calendar_rows = []
-        for d in date_range:
-            out_on_day = df[(df["start_date"] <= d) & (df["end_date"] >= d)]
-            people = ", ".join(
-                f"{REASON_EMOJIS.get(r['reason'], '📌')} {r['name']}"
-                for _, r in out_on_day.iterrows()
+        def shift_month(delta: int) -> None:
+            m = st.session_state.cal_month + delta
+            y = st.session_state.cal_year
+            while m < 1:
+                m += 12
+                y -= 1
+            while m > 12:
+                m -= 12
+                y += 1
+            st.session_state.cal_year = y
+            st.session_state.cal_month = m
+
+        nav_l, nav_c, nav_r = st.columns([1, 3, 1])
+        with nav_l:
+            if st.button("◀ Prev", use_container_width=True):
+                shift_month(-1)
+                st.rerun()
+        with nav_c:
+            month_name = calendar.month_name[st.session_state.cal_month]
+            st.markdown(
+                f"<h2 style='text-align:center; margin:0;'>📅 {month_name} {st.session_state.cal_year}</h2>",
+                unsafe_allow_html=True,
             )
-            calendar_rows.append(
-                {
-                    "Date": d.strftime("%a %b %d"),
-                    "Count": len(out_on_day),
-                    "Who's Out": people if people else "—",
-                }
-            )
+        with nav_r:
+            if st.button("Next ▶", use_container_width=True):
+                shift_month(1)
+                st.rerun()
 
-        cal_df = pd.DataFrame(calendar_rows)
+        if st.button("🗓️ Jump to Today", use_container_width=False):
+            st.session_state.cal_year = today.year
+            st.session_state.cal_month = today.month
+            st.rerun()
 
-        # Bar chart of OOO count by day
-        st.bar_chart(cal_df.set_index("Date")["Count"], height=250)
+        # Build the month grid (weeks of 7 days, Sunday-first)
+        cal = calendar.Calendar(firstweekday=6)  # 6 = Sunday
+        month_days = cal.monthdatescalendar(
+            st.session_state.cal_year, st.session_state.cal_month
+        )
+        current_month = st.session_state.cal_month
 
-        st.dataframe(cal_df, use_container_width=True, hide_index=True)
+        # Day-of-week headers
+        headers_html = "".join(
+            f'<div class="cal-header">{d}</div>'
+            for d in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        )
+
+        # Build day cells
+        cells_html = ""
+        for week in month_days:
+            for day in week:
+                if day.month != current_month:
+                    cells_html += '<div class="cal-day cal-day-empty"></div>'
+                    continue
+
+                out_on_day = df[(df["start_date"] <= day) & (df["end_date"] >= day)]
+                is_weekend = day.weekday() >= 5
+                is_today = day == today
+                has_ooo = len(out_on_day) > 0
+
+                classes = ["cal-day"]
+                if is_today:
+                    classes.append("cal-day-today")
+                elif has_ooo:
+                    classes.append("cal-day-has-ooo")
+                elif is_weekend:
+                    classes.append("cal-day-weekend")
+
+                people_html = ""
+                for _, r in out_on_day.iterrows():
+                    emoji = REASON_EMOJIS.get(r["reason"], "📌")
+                    people_html += f'<span class="cal-person">{emoji} {r["name"]}</span>'
+
+                cells_html += (
+                    f'<div class="{" ".join(classes)}">'
+                    f'<div class="cal-day-num">{day.day}</div>'
+                    f'{people_html}'
+                    f'</div>'
+                )
+
+        grid_html = f'<div class="cal-grid">{headers_html}{cells_html}</div>'
+        st.markdown(grid_html, unsafe_allow_html=True)
+
+        # Legend
+        st.markdown("&nbsp;")
+        st.caption(
+            "🟧 Today  ·  🟦 Someone's out  ·  ⬜ Free day  ·  "
+            "Hover over names to see who. Use ◀ / ▶ to change months."
+        )
 
 # ---------- Footer ----------
 st.divider()
