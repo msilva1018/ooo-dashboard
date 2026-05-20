@@ -254,22 +254,21 @@ with tab1:
             for i, (_, row) in enumerate(out_now.iterrows()):
                 with cols[i % len(cols)]:
                     emoji = REASON_EMOJIS.get(row["reason"], "📌")
-                    fun = random.choice(FUN_MESSAGES) if not row["note"] or pd.isna(row["note"]) else row["note"]
+                    has_note = bool(row["note"]) and not pd.isna(row["note"])
+                    fun = row["note"] if has_note else random.choice(FUN_MESSAGES)
                     days_left = (row["end_date"] - today).days
                     days_text = "Returns tomorrow! 🎯" if days_left == 0 else f"{days_left} day{'s' if days_left != 1 else ''} left"
-                    st.markdown(
-                        f"""
-                        <div class="ooo-card ooo-card-today">
-                            <div class="ooo-name">{emoji} {row['name']}</div>
-                            <div class="ooo-meta">
-                                <b>{row['reason']}</b> · {row['start_date'].strftime('%b %d')} → {row['end_date'].strftime('%b %d')}<br>
-                                <i>{fun}</i><br>
-                                ⏳ {days_text}
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+                    card_html = (
+                        '<div class="ooo-card ooo-card-today">'
+                        f'<div class="ooo-name">{emoji} {row["name"]}</div>'
+                        '<div class="ooo-meta">'
+                        f'<b>{row["reason"]}</b> · {row["start_date"].strftime("%b %d")} → {row["end_date"].strftime("%b %d")}<br>'
+                        f'<i>{fun}</i><br>'
+                        f'⏳ {days_text}'
+                        '</div>'
+                        '</div>'
                     )
+                    st.markdown(card_html, unsafe_allow_html=True)
 
         st.markdown("&nbsp;")
         # Coming up
@@ -284,20 +283,19 @@ with tab1:
                     emoji = REASON_EMOJIS.get(row["reason"], "📌")
                     days_until = (row["start_date"] - today).days
                     when = "Tomorrow!" if days_until == 1 else f"In {days_until} days"
-                    note_text = row["note"] if row["note"] and not pd.isna(row["note"]) else ""
-                    st.markdown(
-                        f"""
-                        <div class="ooo-card ooo-card-upcoming">
-                            <div class="ooo-name">{emoji} {row['name']}</div>
-                            <div class="ooo-meta">
-                                <b>{row['reason']}</b> · {row['start_date'].strftime('%b %d')} → {row['end_date'].strftime('%b %d')}<br>
-                                🚀 {when}<br>
-                                {f"<i>{note_text}</i>" if note_text else ""}
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+                    has_note = bool(row["note"]) and not pd.isna(row["note"])
+                    note_html = f'<br><i>{row["note"]}</i>' if has_note else ''
+                    card_html = (
+                        '<div class="ooo-card ooo-card-upcoming">'
+                        f'<div class="ooo-name">{emoji} {row["name"]}</div>'
+                        '<div class="ooo-meta">'
+                        f'<b>{row["reason"]}</b> · {row["start_date"].strftime("%b %d")} → {row["end_date"].strftime("%b %d")}<br>'
+                        f'🚀 {when}'
+                        f'{note_html}'
+                        '</div>'
+                        '</div>'
                     )
+                    st.markdown(card_html, unsafe_allow_html=True)
 
 # ---------- Tab 2: All Entries ----------
 with tab2:
