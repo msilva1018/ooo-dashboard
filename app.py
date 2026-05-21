@@ -224,6 +224,19 @@ def delete_entry(entry_id: int) -> None:
     save_data(df)
 
 
+def update_entry(entry_id: int, name: str, start: date, end: date, reason: str, note: str) -> None:
+    df = load_data()
+    mask = df["id"] == entry_id
+    if not mask.any():
+        return
+    df.loc[mask, "name"] = name.strip()
+    df.loc[mask, "start_date"] = start
+    df.loc[mask, "end_date"] = end
+    df.loc[mask, "reason"] = reason
+    df.loc[mask, "note"] = note.strip() if note else ""
+    save_data(df)
+
+
 def status_for(row, today: date) -> str:
     if row["start_date"] <= today <= row["end_date"]:
         return "today"
@@ -365,16 +378,21 @@ with tab2:
         st.info("Nothing to show yet. Add an entry from the sidebar!")
     else:
         st.subheader("📋 All Active Entries")
+        st.caption("Click any entry to expand and edit it. Changes save instantly.")
+
         display = df.copy().sort_values("start_date").reset_index(drop=True)
-        display["Status"] = display.apply(
+
+        # Summary table (read-only overview)
+        overview = display.copy()
+        overview["Status"] = overview.apply(
             lambda r: "🟢 Out now" if r["start_date"] <= today <= r["end_date"]
             else ("🔵 Upcoming" if r["start_date"] > today else "⚪ Past"),
             axis=1,
         )
-        display["Reason"] = display["reason"].apply(
+        overview["Reason"] = overview["reason"].apply(
             lambda r: f"{REASON_EMOJIS.get(r, '📌')} {r}"
         )
-        display = display.rename(
+        overview = overview.rename(
             columns={
                 "name": "Name",
                 "start_date": "Start",
@@ -382,24 +400,84 @@ with tab2:
                 "note": "Note",
             }
         )
-
         st.dataframe(
-            display[["Name", "Reason", "Start", "End", "Status", "Note"]],
+            overview[["Name", "Reason", "Start", "End", "Status", "Note"]],
             use_container_width=True,
             hide_index=True,
         )
 
-        st.markdown("### 🗑️ Remove an entry")
-        options = {
-            f"{r['name']} — {r['reason']} ({r['start_date']} → {r['end_date']})": int(r["id"])
-            for _, r in df.iterrows()
-        }
-        if options:
-            choice = st.selectbox("Select entry to remove", list(options.keys()))
-            if st.button("Delete entry", type="primary"):
-                delete_entry(options[choice])
-                st.success("Entry removed ✅")
-                st.rerun()
+        st.markdown("### ✏️ Edit Entries")
+
+        reason_options = list(REASON_EMOJIS.keys())
+
+        for _, row in display.iterrows():
+            entry_id = int(row["id"])
+            emoji = REASON_EMOJIS.get(row["reason"], "📌")
+            status_icon = (
+                "🟢" if row["start_date"] <= today <= row["end_date"]
+                else ("🔵" if row["start_date"] > today else "⚪")
+            )
+            label = (
+                f"{status_icon} {emoji} {row['name']} — {row['reason']} "
+                f"({row['start_date'].strftime('%b %d')} → {row['end_date'].strftime('%b %d')})"
+            )
+
+            with st.expander(label):
+                with st.form(f"edit_form_{entry_id}"):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        new_name = st.text_input(
+                            "Name", value=row["name"], key=f"name_{entry_id}"
+                        )
+                        new_start = st.date_input(
+                            "Start date", value=row["start_date"], key=f"start_{entry_id}"
+                        )
+                        new_reason = st.selectbox(
+                            "Reason",
+                            reason_options,
+                            index=reason_options.index(row["reason"])
+                            if row["reason"] in reason_options else 0,
+                            key=f"reason_{entry_id}",
+                        )
+                    with c2:
+                        current_note = "" if pd.isna(row["note"]) else str(row["note"])
+                        new_end = st.date_input(
+                            "End date", value=row["end_date"], key=f"end_{entry_id}"
+                        )
+                        new_note = st.text_area(
+                            "Note",
+                            value=current_note,
+                            key=f"note_{entry_id}",
+                            height=100,
+                            placeholder="Add a note (optional)",
+                        )
+
+                    save_col, delete_col = st.columns(2)
+                    with save_col:
+                        save_clicked = st.form_submit_button(
+                            "💾 Save changes", use_container_width=True, type="primary"
+                        )
+                    with delete_col:
+                        delete_clicked = st.form_submit_button(
+                            "🗑️ Delete entry", use_container_width=True
+                        )
+
+                    if save_clicked:
+                        if not new_name.strip():
+                            st.error("Name can't be empty.")
+                        elif new_end < new_start:
+                            st.error("End date can't be before start date.")
+                        else:
+                            update_entry(
+                                entry_id, new_name, new_start, new_end, new_reason, new_note
+                            )
+                            st.success(f"Updated {new_name}'s entry ✅")
+                            st.rerun()
+
+                    if delete_clicked:
+                        delete_entry(entry_id)
+                        st.success("Entry removed ✅")
+                        st.rerun()
 
 # ---------- Tab 3: Calendar View ----------
 with tab3:
