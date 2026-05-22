@@ -6,12 +6,12 @@ name: Keep Streamlit Awake
 
 on:
   schedule:
-    # Runs at 9 AM Eastern Time, year-round.
+    # Runs at 9:30 AM Eastern Time, year-round.
     # GitHub Actions uses UTC and doesn't auto-adjust for daylight saving,
-    # so we schedule both 13:00 UTC (9 AM EDT, summer) and 14:00 UTC (9 AM EST, winter).
-    # One of the two will hit at 9 AM your time; the other runs at 8 AM and is a harmless extra ping.
-    - cron: '0 13 * * *'   # 9 AM EDT (Mar–Nov)
-    - cron: '0 14 * * *'   # 9 AM EST (Nov–Mar)
+    # so we schedule both 13:30 UTC (9:30 AM EDT, summer) and 14:30 UTC (9:30 AM EST, winter).
+    # One of the two will hit at 9:30 AM your time; the other runs at 8:30 AM and is a harmless extra ping.
+    - cron: '30 13 * * *'   # 9:30 AM EDT (Mar–Nov)
+    - cron: '30 14 * * *'   # 9:30 AM EST (Nov–Mar)
   # Lets you trigger it manually from the Actions tab too
   workflow_dispatch:
 
