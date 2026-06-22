@@ -1,0 +1,14 @@
+# LCN Consulting — Out of Office: theme + client config
+# Colors are pulled from the LCN logo (navy, steel blue, maroon ember).
+
+[theme]
+base = "dark"
+primaryColor = "#7AA0CB"            # steel blue — primary buttons, focus
+backgroundColor = "#0E1620"         # deep navy-charcoal page background
+secondaryBackgroundColor = "#16212E" # sidebar + cards
+textColor = "#E9EFF7"               # off-white text
+font = "sans serif"
+
+[client]
+# Keep the toolbar minimal for a clean, shared internal tool.
+toolbarMode = "minimal"
